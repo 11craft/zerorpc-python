@@ -27,10 +27,11 @@ import gevent
 import gevent.event
 
 import zerorpc
+from testutils import teardown, random_ipc_endpoint
 
 
-def test_pushpull():
-    endpoint = 'ipc://test_pushpull'
+def test_pushpull_inheritance():
+    endpoint = random_ipc_endpoint()
 
     pusher = zerorpc.Pusher()
     pusher.bind(endpoint)
@@ -52,11 +53,11 @@ def test_pushpull():
     print 'done'
 
 
-def test_pubsub():
-    endpoint = 'ipc://test_pubsub'
+def test_pubsub_inheritance():
+    endpoint = random_ipc_endpoint()
 
-    pusher = zerorpc.Publisher()
-    pusher.bind(endpoint)
+    publisher = zerorpc.Publisher()
+    publisher.bind(endpoint)
     trigger = gevent.event.Event()
 
     class Subscriber(zerorpc.Subscriber):
@@ -65,11 +66,59 @@ def test_pubsub():
             assert a + b == 3
             trigger.set()
 
-    puller = Subscriber()
+    subscriber = Subscriber()
+    subscriber.connect(endpoint)
+    gevent.spawn(subscriber.run)
+
+    trigger.clear()
+    publisher.lolita(1, 2)
+    trigger.wait()
+    print 'done'
+
+
+def test_pushpull_composite():
+    endpoint = random_ipc_endpoint()
+    trigger = gevent.event.Event()
+
+    class Puller(object):
+        def lolita(self, a, b):
+            print 'lolita', a, b
+            assert a + b == 3
+            trigger.set()
+
+    pusher = zerorpc.Pusher()
+    pusher.bind(endpoint)
+
+    service = Puller()
+    puller = zerorpc.Puller(service)
     puller.connect(endpoint)
     gevent.spawn(puller.run)
 
     trigger.clear()
     pusher.lolita(1, 2)
+    trigger.wait()
+    print 'done'
+
+
+def test_pubsub_composite():
+    endpoint = random_ipc_endpoint()
+    trigger = gevent.event.Event()
+
+    class Subscriber(object):
+        def lolita(self, a, b):
+            print 'lolita', a, b
+            assert a + b == 3
+            trigger.set()
+
+    publisher = zerorpc.Publisher()
+    publisher.bind(endpoint)
+
+    service = Subscriber()
+    subscriber = zerorpc.Subscriber(service)
+    subscriber.connect(endpoint)
+    gevent.spawn(subscriber.run)
+
+    trigger.clear()
+    publisher.lolita(1, 2)
     trigger.wait()
     print 'done'

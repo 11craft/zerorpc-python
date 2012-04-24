@@ -1,10 +1,14 @@
 zerorpc
 =======
 
+.. image:: https://secure.travis-ci.org/dotcloud/zerorpc-python.png
+   :target: http://travis-ci.org/dotcloud/zerorpc-python
+
 zerorpc is a flexible RPC implementation based on zeromq and messagepack. 
 Service APIs exposed with zerorpc are called "zeroservices".
 
-zerorpc comes with a convenient script, "zerorpc-client", allowing to:
+zerorpc can be used programmatically or from the command-line. It comes
+with a convenient script, "zerorpc", allowing to:
 
 * expose Python modules without modifying a single line of code,
 * call those modules remotely through the command line.
@@ -16,12 +20,12 @@ Create a server with a one-liner
 Let's see zerorpc in action with a simple example. In a first terminal,
 we will expose the Python "time" module::
 
-  $ zerorpc-client --server --bind tcp://0:1234 time
+  $ zerorpc --server --bind tcp://*:1234 time
 
 .. note::
    The bind address uses the zeromq address format. You are not limited
    to TCP transport: you could as well specify ipc:///tmp/time to use
-   host-local sockets, for instance. "tcp://0:1234" is a short-hand to
+   host-local sockets, for instance. "tcp://*:1234" is a short-hand to
    "tcp://0.0.0.0:1234" and means "listen on TCP port 1234, accepting 
    connections on all IP addresses".
 
@@ -31,22 +35,22 @@ Call the server from the command-line
 
 Now, in another terminal, call the exposed module::
 
-  $ zerorpc-client --client --connect tcp://0:1234 strftime %Y/%m/%d
-  Connecting to "tcp://0:1234"
+  $ zerorpc --client --connect tcp://*:1234 strftime %Y/%m/%d
+  Connecting to "tcp://*:1234"
   "2011/03/07"
 
 Since the client usecase is the most common one, "--client" is the default
 parameter, and you can remove it safely::
 
-  $ zerorpc-client --connect tcp://0:1234 strftime %Y/%m/%d
-  Connecting to "tcp://0:1234"
+  $ zerorpc --connect tcp://*:1234 strftime %Y/%m/%d
+  Connecting to "tcp://*:1234"
   "2011/03/07"
 
 Moreover, since the most common usecase is to *connect* (as opposed to *bind*)
 you can also omit "--connect"::
 
-  $ zerorpc-client tcp://0:1234 strftime %Y/%m/%d
-  Connecting to "tcp://0:1234"
+  $ zerorpc tcp://*:1234 strftime %Y/%m/%d
+  Connecting to "tcp://*:1234"
   "2011/03/07"
 
 
@@ -56,8 +60,8 @@ See remote service documentation
 You can introspect the remote service; it happens automatically if you don't
 specify the name of the function you want to call::
 
-  $ zerorpc-client tcp://0:1234
-  Connecting to "tcp://0:1234"
+  $ zerorpc tcp://*:1234
+  Connecting to "tcp://*:1234"
   tzset       tzset(zone)
   ctime       ctime(seconds) -> string
   clock       clock() -> floating point number
@@ -78,8 +82,8 @@ Specifying non-string arguments
 Now, see what happens if we try to call a function expecting a non-string
 argument::
 
-  $ zerorpc-client tcp://0:1234 sleep 3
-  Connecting to "tcp://0:1234"
+  $ zerorpc tcp://*:1234 sleep 3
+  Connecting to "tcp://*:1234"
   Traceback (most recent call last):
   [...]
   TypeError: a float is required
@@ -87,8 +91,8 @@ argument::
 That's because all command-line arguments are handled as strings. Don't worry,
 we can specify any kind of argument using JSON encoding::
 
-  $ zerorpc-client --json tcp://0:1234 sleep 3
-  Connecting to "tcp://0:1234"
+  $ zerorpc --json tcp://*:1234 sleep 3
+  Connecting to "tcp://*:1234"
   [wait for 3 seconds...]
   null
 
@@ -101,12 +105,12 @@ your server to act as a kind of worker, and connect to a hub or queue which
 will dispatch requests. You can achieve this by swapping "--bind" and
 "--connect"::
 
-  $ zerorpc-client --bind tcp://0:1234 localtime
+  $ zerorpc --bind tcp://*:1234 localtime
 
 We now have "something" wanting to call the "localtime" function, and waiting
 for a worker to connect to it. Let's start the worker::
 
-  $ zerorpc-client --server tcp://0:1234 time
+  $ zerorpc --server tcp://*:1234 time
 
 The worker will connect to the listening client and ask him "what should I 
 do?"; the client will send the "localtime" function call; the worker will
@@ -120,10 +124,10 @@ Listening on multiple addresses
 What if you want to run the same server on multiple addresses? Just repeat
 the "--bind" option::
 
-  $ zerorpc-client --server --bind tcp://0:1234 --bind ipc:///tmp/time time
+  $ zerorpc --server --bind tcp://*:1234 --bind ipc:///tmp/time time
 
-You can then connect to it using either "zerorpc-client tcp://0:1234" or
-"zerorpc-client ipc:///tmp/time".
+You can then connect to it using either "zerorpc tcp://*:1234" or
+"zerorpc ipc:///tmp/time".
 
 Wait, there is more! You can even mix "--bind" and "--connect". That means
 that your server will wait for requests on a given address, *and* connect
@@ -139,3 +143,54 @@ it won't affect the worker (that's the magic of zeromq).
    addresses, and will dispatch requests to available workers. If you want
    to connect to multiple remote servers for high availability purposes,
    you insert something like HAProxy in the middle.
+
+
+Exposing a zeroservice programmatically
+---------------------------------------
+
+Of course, the command-line is simply a convenience wrapper for the zerorpc
+python API. Below are a few examples.
+
+Here's how to expose an object of your choice as a zeroservice::
+
+    class Cooler:
+        """ Various convenience methods to make things cooler. """
+
+        def add_man(self, sentence):
+            """ End a sentence with ", man!" to make it sound cooler, and
+            return the result. """
+            return sentence + ", man!"
+    
+        def add_42(self, n):
+            """ Add 42 to an integer argument to make it cooler, and return the
+            result. """
+            return n + 42
+    
+        def boat(self, sentence):
+            """ Replace a sentence with "I'm on a boat!", and return that,
+            because it's cooler. """
+            return "I'm on a boat!"
+    
+    import zerorpc
+    
+    s = zerorpc.Server(Cooler())
+    s.bind("tcp://0.0.0.0:4242")
+    s.run()
+
+Let's save this code to *cooler.py* and run it::
+
+  $ python cooler.py
+
+Now, in another terminal, let's try connecting to our awesome zeroservice::
+
+  $ zerorpc -j tcp://:4242 add_42 1
+  43
+  $ zerorpc tcp://:4242 add_man 'I own a mint-condition Wolkswagen Golf'
+  "I own a mint-condition Wolkswagen Gold, man!"
+  $ zerorpc tcp://:4242 boat 'I own a mint-condition Wolkswagen Gold, man!'
+  "I'm on a boat!"
+
+
+Congratulations! You have just made the World a little cooler with your first
+zeroservice, man!
+

@@ -107,6 +107,8 @@ class Receiver(object):
 
 class Event(object):
 
+    __slots__ = [ '_name', '_args', '_header' ]
+
     def __init__(self, name, args, context, header=None):
         self._name = name
         self._args = args
@@ -114,7 +116,7 @@ class Event(object):
             context = context or Context.get_instance()
             self._header = {
                     'message_id': context.new_msgid(),
-                    'v': 2
+                    'v': 3
                     }
         else:
             self._header = header
@@ -126,6 +128,10 @@ class Event(object):
     @property
     def name(self):
         return self._name
+
+    @name.setter
+    def name(self, v):
+        self._name = v
 
     @property
     def args(self):
@@ -253,8 +259,12 @@ class Events(object):
 
 
 class WrappedEvents(object):
+
     def __init__(self, channel):
         self._channel = channel
+
+    def close(self):
+        pass
 
     @property
     def recv_is_available(self):

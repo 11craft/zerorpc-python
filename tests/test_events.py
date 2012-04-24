@@ -25,7 +25,7 @@
 
 from zerorpc import zmq
 import zerorpc
-
+from testutils import teardown, random_ipc_endpoint
 
 class MokupContext():
     _next_id = 0
@@ -92,7 +92,7 @@ def test_event():
 
 
 def test_events_req_rep():
-    endpoint = 'ipc://test_events_req_rep'
+    endpoint = random_ipc_endpoint()
     server = zerorpc.Events(zmq.REP)
     server.bind(endpoint)
 
@@ -108,7 +108,7 @@ def test_events_req_rep():
 
 
 def test_events_req_rep2():
-    endpoint = 'ipc://test_events_req_rep2'
+    endpoint = random_ipc_endpoint()
     server = zerorpc.Events(zmq.REP)
     server.bind(endpoint)
 
@@ -130,7 +130,7 @@ def test_events_req_rep2():
 
 
 def test_events_dealer_router():
-    endpoint = 'ipc://test_events_dealer_router'
+    endpoint = random_ipc_endpoint()
     server = zerorpc.Events(zmq.XREP)
     server.bind(endpoint)
 
@@ -153,7 +153,7 @@ def test_events_dealer_router():
 
 
 def test_events_push_pull():
-    endpoint = 'ipc://test_events_push_pull'
+    endpoint = random_ipc_endpoint()
     server = zerorpc.Events(zmq.PULL)
     server.bind(endpoint)
 
@@ -168,92 +168,3 @@ def test_events_push_pull():
         print event
         assert event.name == 'myevent'
         assert event.args == (x,)
-
-
-def test_events_channel_client_side():
-    endpoint = 'ipc://test_events_channel_client_side'
-    server_events = zerorpc.Events(zmq.XREP)
-    server_events.bind(endpoint)
-    server = zerorpc.ChannelMultiplexer(server_events)
-
-    client_events = zerorpc.Events(zmq.XREQ)
-    client_events.connect(endpoint)
-    client = zerorpc.ChannelMultiplexer(client_events)
-
-    client_channel = client.channel()
-    client_channel.emit('someevent', (42,))
-
-    event = server.recv()
-    print event
-    assert event.args == (42,)
-    assert event.header.get('zmqid', None) is not None
-
-    server.emit('someanswer', (21,),
-            xheader=dict(response_to=event.header['message_id'],
-                zmqid=event.header['zmqid']))
-    event = client_channel.recv()
-    assert event.args == (21,)
-
-
-def test_events_channel_client_side_server_send_many():
-    endpoint = 'ipc://test_events_channel_client_side_server_send_many'
-    server_events = zerorpc.Events(zmq.XREP)
-    server_events.bind(endpoint)
-    server = zerorpc.ChannelMultiplexer(server_events)
-
-    client_events = zerorpc.Events(zmq.XREQ)
-    client_events.connect(endpoint)
-    client = zerorpc.ChannelMultiplexer(client_events)
-
-    client_channel = client.channel()
-    client_channel.emit('giveme', (10,))
-
-    event = server.recv()
-    print event
-    assert event.args == (10,)
-    assert event.header.get('zmqid', None) is not None
-
-    for x in xrange(10):
-        server.emit('someanswer', (x,),
-                xheader=dict(response_to=event.header['message_id'],
-                    zmqid=event.header['zmqid']))
-    for x in xrange(10):
-        event = client_channel.recv()
-        assert event.args == (x,)
-
-
-def test_events_channel_both_side():
-    endpoint = 'ipc://test_events_channel_both_side'
-    server_events = zerorpc.Events(zmq.XREP)
-    server_events.bind(endpoint)
-    server = zerorpc.ChannelMultiplexer(server_events)
-
-    client_events = zerorpc.Events(zmq.XREQ)
-    client_events.connect(endpoint)
-    client = zerorpc.ChannelMultiplexer(client_events)
-
-    client_channel = client.channel()
-    client_channel.emit('openthat', (42,))
-
-    event = server.recv()
-    print event
-    assert event.args == (42,)
-    assert event.name == 'openthat'
-
-    server_channel = server.channel(event)
-    server_channel.emit('test', (21,))
-
-    event = client_channel.recv()
-    assert event.args == (21,)
-    assert event.name == 'test'
-
-    server_channel.emit('test', (22,))
-
-    event = client_channel.recv()
-    assert event.args == (22,)
-    assert event.name == 'test'
-
-    server_events.close()
-    server_channel.close()
-    client_channel.close()
-    client_channel.close()

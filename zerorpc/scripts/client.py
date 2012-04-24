@@ -28,20 +28,21 @@ import argparse
 import json
 import sys
 import inspect
+import os
 from pprint import pprint
 
 import zerorpc
 
 
 parser = argparse.ArgumentParser(
-        description='Make a zerorpc call to a remote service.'
-        )
+    description='Make a zerorpc call to a remote service.'
+)
 
 client_or_server = parser.add_mutually_exclusive_group()
 client_or_server.add_argument('--client', action='store_true', default=True,
-        help='remote procedure call mode (default)')
+                              help='remote procedure call mode (default)')
 client_or_server.add_argument('--server', action='store_false', dest='client',
-        help='turn a given python module into a server')
+                              help='turn a given python module into a server')
 
 parser.add_argument('--connect', action='append', metavar='address',
                     help='specify address to connect to. Can be specified \
@@ -96,6 +97,7 @@ def setup_links(args, socket):
 def run_server(args):
     server_obj_path = args.command
 
+    sys.path.insert(0, os.getcwd())
     if '.' in server_obj_path:
         modulepath, objname = server_obj_path.rsplit('.', 1)
         module = __import__(modulepath, fromlist=[objname])
@@ -117,19 +119,19 @@ def run_server(args):
 def zerorpc_inspect(client, method=None, long_doc=True, include_argspec=True):
     try:
         remote_detailled_methods = client._zerorpc_inspect(method,
-                long_doc)['methods']
+                                                           long_doc)['methods']
 
         if include_argspec:
             r = [(name + (inspect.formatargspec(*argspec) if argspec else
-                '(...)'), doc if doc else '<undocumented>')
-                for name, argspec, doc in remote_detailled_methods]
+                          '(...)'), doc if doc else '<undocumented>')
+            for name, argspec, doc in remote_detailled_methods]
         else:
             r = [(name, doc if doc else '<undocumented>')
-                    for name, argspec, doc in remote_detailled_methods]
+            for name, argspec, doc in remote_detailled_methods]
 
         longest_name_len = max(len(name) for name, doc in r)
         return (longest_name_len, r)
-    except zerorpc.RemoteError:
+    except (zerorpc.RemoteError, NameError):
         pass
 
     if method is None:
@@ -154,19 +156,19 @@ def zerorpc_inspect(client, method=None, long_doc=True, include_argspec=True):
             remote_detailled_methods()))
 
     r = [(name + (inspect.formatargspec(*argspec)
-            if argspec else '(...)'), doc)
-            for name, argspec, doc in remote_detailled_methods()]
+                  if argspec else '(...)'), doc)
+    for name, argspec, doc in remote_detailled_methods()]
     longest_name_len = max(len(name) for name, doc in r)
     return (longest_name_len, r)
 
 
 def run_client(args):
     client = zerorpc.Client(timeout=args.timeout, heartbeat=args.heartbeat,
-            passive_heartbeat=not args.active_hb)
+                            passive_heartbeat=not args.active_hb)
     setup_links(args, client)
     if not args.command:
         (longest_name_len, detailled_methods) = zerorpc_inspect(client,
-                long_doc=False, include_argspec=args.inspect)
+                                                                long_doc=False, include_argspec=args.inspect)
         if args.inspect:
             for (name, doc) in detailled_methods:
                 print name
@@ -176,7 +178,7 @@ def run_client(args):
         return
     if args.inspect:
         (longest_name_len, detailled_methods) = zerorpc_inspect(client,
-                method=args.command)
+                                                                method=args.command)
         (name, doc) = detailled_methods[0]
         print '\n{0}\n\n{1}\n'.format(name, doc)
         return
@@ -209,13 +211,24 @@ def run_client(args):
 
 def main():
     args = parser.parse_args()
+
     if args.bind or args.connect:
         if args.command:
             args.params.insert(0, args.command)
         args.command = args.address
         args.address = None
+
+    if not (args.bind or args.connect or args.address):
+        parser.print_help()
+        return -1
+
     if args.client:
         return run_client(args)
+
+    if not args.command:
+        parser.print_help()
+        return -1
+
     return run_server(args)
 
 if __name__ == '__main__':

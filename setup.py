@@ -22,7 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import zerorpc
+execfile('zerorpc/version.py')
 
 try:
     from setuptools import setup
@@ -39,9 +39,9 @@ else:
 
 setup(
     name='zerorpc',
-    version=zerorpc.__version__,
+    version=__version__,
     description='zerorpc is a flexible RPC based on zeromq.',
-    author=zerorpc.__author__,
+    author=__author__,
     url='https://github.com/dotcloud/zerorpc-python',
     packages=['zerorpc', 'zerorpc.scripts'],
     install_requires=[
@@ -61,6 +61,6 @@ setup(
     ),
     entry_points="""
     [console_scripts]
-    zerorpc-client = zerorpc.scripts.client:main
+    zerorpc = zerorpc.scripts.client:main
     """,
 )

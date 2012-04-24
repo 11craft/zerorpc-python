@@ -22,11 +22,41 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .version import *
-from .exceptions import *
-from .context import *
-from .socket import *
-from .channel import *
-from .events import *
-from .core import *
-from .heartbeat import *
+
+import gevent
+
+import zerorpc
+from testutils import teardown, random_ipc_endpoint
+
+def test_client_connect():
+    endpoint = random_ipc_endpoint()
+
+    class MySrv(zerorpc.Server):
+
+        def lolita(self):
+            return 42
+
+    srv = MySrv()
+    srv.bind(endpoint)
+    gevent.spawn(srv.run)
+
+    client = zerorpc.Client()
+    client.connect(endpoint)
+
+    assert client.lolita() == 42
+
+def test_client_quick_connect():
+    endpoint = random_ipc_endpoint()
+
+    class MySrv(zerorpc.Server):
+
+        def lolita(self):
+            return 42
+
+    srv = MySrv()
+    srv.bind(endpoint)
+    gevent.spawn(srv.run)
+
+    client = zerorpc.Client(endpoint)
+
+    assert client.lolita() == 42

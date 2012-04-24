@@ -26,10 +26,11 @@
 import gevent
 
 import zerorpc
+from testutils import teardown, random_ipc_endpoint
 
 
 def test_rcp_streaming():
-    endpoint = 'ipc://test_rcp_streaming'
+    endpoint = random_ipc_endpoint()
 
     class MySrv(zerorpc.Server):
 
